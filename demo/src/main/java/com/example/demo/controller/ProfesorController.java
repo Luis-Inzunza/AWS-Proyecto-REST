@@ -1,87 +1,76 @@
 package com.example.demo.controller;
 
+import com.example.demo.model.Profesor;
+import com.example.demo.repository.ProfesorRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.ArrayList;
-
-import com.example.demo.model.Profesor;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/profesores")
 public class ProfesorController {
-    private List<Profesor> listaProfesores = new ArrayList<>();
+
+    @Autowired
+    private ProfesorRepository profesorRepository;
 
     @GetMapping
-    public ResponseEntity<List<Profesor>> obtenerProfesor(){
-        return new ResponseEntity<>(listaProfesores, HttpStatus.OK); // 200 OK
-    }
-
-    @PostMapping
-    public ResponseEntity<Profesor> crearProfesor(@RequestBody Profesor profesor ){
-        if (!validarProfesor(profesor)) {return new ResponseEntity<>(HttpStatus.BAD_REQUEST);} //400 BAD REQUEST
-        
-        listaProfesores.add(profesor);
-
-        return new ResponseEntity<>(profesor, HttpStatus.CREATED); //201 CREATED
+    public List<Profesor> obtenerProfesores() {
+        return profesorRepository.findAll();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Profesor> profesorId(@PathVariable int id) {
-        for (Profesor profesor : listaProfesores) {
-            if (profesor.getId() == id) {
-                return new ResponseEntity<>(profesor, HttpStatus.OK); //200 OK
-            }
+    public ResponseEntity<Profesor> obtenerProfesorPorId(@PathVariable int id) {
+        Optional<Profesor> profesor = profesorRepository.findById(id);
+        return profesor.map(value -> new ResponseEntity<>(value, HttpStatus.OK))
+                .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
+    }
+
+    @PostMapping
+    public ResponseEntity<Profesor> crearProfesor(@RequestBody Profesor profesor) {
+        if (!validarProfesor(profesor)) {
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
-        return new ResponseEntity<>(HttpStatus.NOT_FOUND); //404 NOT FOUND
+        Profesor profesorGuardado = profesorRepository.save(profesor);
+        return new ResponseEntity<>(profesorGuardado, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<Profesor> actualizarProfesor(@PathVariable int id, @RequestBody Profesor profesorNuevo) {
-        
-        if (!validarProfesor(profesorNuevo)) {return new ResponseEntity<>(HttpStatus.BAD_REQUEST);} //400 BAD REQUEST
-        
-        for (Profesor profesor : listaProfesores) {
-            if (profesor.getId() == id) {
-                profesor.setNumeroEmpleado(profesorNuevo.getNumeroEmpleado());
-                profesor.setNombres(profesorNuevo.getNombres());
-                profesor.setApellidos(profesorNuevo.getApellidos());
-                profesor.setHorasClase(profesorNuevo.getHorasClase());
-                
-                return new ResponseEntity<>(profesor, HttpStatus.OK); //200 OK  
-            }
+        if (!validarProfesor(profesorNuevo)) {
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
-        return new ResponseEntity<>(HttpStatus.NOT_FOUND); //404 NOT FOUND
+
+        return profesorRepository.findById(id)
+                .map(profesor -> {
+                    profesor.setNombres(profesorNuevo.getNombres());
+                    profesor.setApellidos(profesorNuevo.getApellidos());
+                    profesor.setNumeroEmpleado(profesorNuevo.getNumeroEmpleado());
+                    profesor.setHorasClase(profesorNuevo.getHorasClase());
+                    profesorRepository.save(profesor);
+                    return new ResponseEntity<>(profesor, HttpStatus.OK);
+                })
+                .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Profesor> eliminarProfesor(@PathVariable int id) {
-        for (Profesor profesor : listaProfesores) {
-            if (profesor.getId() == id) {
-                listaProfesores.remove(profesor);
-                return new ResponseEntity<>(profesor, HttpStatus.OK); //200 OK
-            }
+    public ResponseEntity<Object> eliminarProfesor(@PathVariable int id) {
+        if (profesorRepository.existsById(id)) {
+            profesorRepository.deleteById(id);
+            return new ResponseEntity<>(HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
-        return new ResponseEntity<>(HttpStatus.NOT_FOUND); //404 NOT FOUND
     }
 
     private boolean validarProfesor(Profesor profesor) {
-        if (profesor.getNombres() == null || profesor.getNombres().isEmpty()) {
-            return false;
-        }
-        if (profesor.getApellidos() == null || profesor.getApellidos().isEmpty()) {
-            return false;
-        }
-        if (profesor.getNumeroEmpleado() <= 0) {
-            return false;
-        }
-        if (profesor.getHorasClase() <= 0) {
-            return false;
-        }
-        
+        if (profesor.getNombres() == null || profesor.getNombres().isEmpty()) return false;
+        if (profesor.getApellidos() == null || profesor.getApellidos().isEmpty()) return false;
+        if (profesor.getNumeroEmpleado() <= 0) return false;
+        if (profesor.getHorasClase() <= 0) return false;
         return true;
     }
-
 }

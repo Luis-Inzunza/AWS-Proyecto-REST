@@ -1,84 +1,99 @@
 package com.example.demo.controller;
 
+import com.example.demo.model.Alumnos;
+import com.example.demo.repository.AlumnoRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.ArrayList;
-
-import com.example.demo.model.Alumnos;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/alumnos")
 public class AlumnoController {
-    private List<Alumnos> listaAlumnos = new ArrayList<>();
 
-     @GetMapping
-    public ResponseEntity<List<Alumnos>> obtenerAlumno(){
-        return new ResponseEntity<>(listaAlumnos, HttpStatus.OK); // 200 OK
+    @Autowired
+    private AlumnoRepository alumnoRepository;
+
+    
+    @GetMapping
+    public List<Alumnos> obtenerAlumnos() {
+        return alumnoRepository.findAll();
     }
 
-    @PostMapping
-    public ResponseEntity<Alumnos> crearAlumno(@RequestBody Alumnos alumno ){
-        if (!validarAlumno(alumno)) {return new ResponseEntity<>(HttpStatus.BAD_REQUEST);} //400 BAD REQUEST
-        
-        listaAlumnos.add(alumno);
-
-        return new ResponseEntity<>(alumno, HttpStatus.CREATED); //201 CREATED
-    }
-
+    
     @GetMapping("/{id}")
-    public ResponseEntity<Alumnos> alumnoId(@PathVariable int id) {
-        for (Alumnos profesor : listaAlumnos) {
-            if (profesor.getId() == id) {
-                return new ResponseEntity<>(profesor, HttpStatus.OK); //200 OK
-            }
+    public ResponseEntity<Alumnos> obtenerAlumnoPorId(@PathVariable int id) {
+        Optional<Alumnos> alumno = alumnoRepository.findById(id);
+        
+        if (alumno.isPresent()) {
+            return new ResponseEntity<>(alumno.get(), HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
-        return new ResponseEntity<>(HttpStatus.NOT_FOUND); //404 NOT FOUND
     }
 
+    
+    @PostMapping
+    public ResponseEntity<Alumnos> crearAlumno(@RequestBody Alumnos alumno) {
+        // Validamos datos básicos (incluyendo password que es nuevo requisito)
+        if (!validarAlumno(alumno)) {
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
+        
+        // La base de datos asignará el ID automáticamente, así que guardamos directo
+        Alumnos alumnoGuardado = alumnoRepository.save(alumno);
+        return new ResponseEntity<>(alumnoGuardado, HttpStatus.CREATED);
+    }
+
+    
     @PutMapping("/{id}")
     public ResponseEntity<Alumnos> actualizarAlumno(@PathVariable int id, @RequestBody Alumnos alumnoNuevo) {
-        
-        if (!validarAlumno(alumnoNuevo)) {return new ResponseEntity<>(HttpStatus.BAD_REQUEST);} //400 BAD REQUEST
-        
-        for (Alumnos alumno : listaAlumnos) {
-            if (alumno.getId() == id) {
-                alumno.setMatricula(alumnoNuevo.getMatricula());
-                alumno.setNombres(alumnoNuevo.getNombres());
-                alumno.setApellidos(alumnoNuevo.getApellidos());
-                alumno.setPromedio(alumnoNuevo.getPromedio());
-                
-                return new ResponseEntity<>(alumnoNuevo, HttpStatus.OK); //200 OK  
-            }
+        if (!validarAlumno(alumnoNuevo)) {
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
-        return new ResponseEntity<>(HttpStatus.NOT_FOUND); //404 NOT FOUND
+
+        Optional<Alumnos> alumnoExistente = alumnoRepository.findById(id);
+
+        if (alumnoExistente.isPresent()) {
+            Alumnos alumno = alumnoExistente.get();
+            // Actualizamos campos
+            alumno.setNombres(alumnoNuevo.getNombres());
+            alumno.setApellidos(alumnoNuevo.getApellidos());
+            alumno.setMatricula(alumnoNuevo.getMatricula());
+            alumno.setPromedio(alumnoNuevo.getPromedio());
+            if(alumnoNuevo.getPassword() != null && !alumnoNuevo.getPassword().isEmpty()){
+                alumno.setPassword(alumnoNuevo.getPassword());
+            }
+            
+            // Guardamos los cambios en BD
+            alumnoRepository.save(alumno);
+            return new ResponseEntity<>(alumno, HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Alumnos> eliminarProfesor(@PathVariable int id) {
-        for (Alumnos alumno : listaAlumnos) {
-            if (alumno.getId() == id) {
-                listaAlumnos.remove(alumno);
-                return new ResponseEntity<>(alumno, HttpStatus.OK); //200 OK
-            }
+    public ResponseEntity<Object> eliminarAlumno(@PathVariable int id) {
+        if (alumnoRepository.existsById(id)) {
+            alumnoRepository.deleteById(id);
+            return new ResponseEntity<>(HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
-        return new ResponseEntity<>(HttpStatus.NOT_FOUND); //404 NOT FOUND
     }
 
+
     private boolean validarAlumno(Alumnos alumno) {
-        if (alumno.getNombres() == null || alumno.getNombres().isEmpty()) {
-            return false;
-        }
-        if (alumno.getApellidos() == null || alumno.getApellidos().isEmpty()) {
-            return false;
-        }
-        if (alumno.getMatricula() == null || alumno.getMatricula().isEmpty()) {
-            return false;
-        }
-        if (alumno.getPromedio() <= 0) return false;
-        
+        if (alumno.getNombres() == null || alumno.getNombres().isEmpty()) return false;
+        if (alumno.getApellidos() == null || alumno.getApellidos().isEmpty()) return false;
+        if (alumno.getMatricula() == null || alumno.getMatricula().isEmpty()) return false;
+        if (alumno.getPromedio() < 0) return false;
+        // Validamos password si es necesario para creación
+        // if (alumno.getPassword() == null || alumno.getPassword().isEmpty()) return false; 
         return true;
     }
 }
