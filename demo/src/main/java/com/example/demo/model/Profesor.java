@@ -1,7 +1,14 @@
 package com.example.demo.model;
 
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "profesores")
 public class Profesor {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
+    
     private int numeroEmpleado;
     private String nombres;
     private String apellidos;
